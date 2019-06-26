@@ -1,0 +1,63 @@
+version: '3.5'
+
+services:
+  helk-zookeeper:
+    image: cyb3rward0g/helk-zookeeper:2.2.0
+    container_name: helk-zookeeper
+    restart: always
+    networks:
+      helk:
+  helk-kafka-broker:
+    image: cyb3rward0g/helk-kafka-broker:2.2.0
+    container_name: helk-kafka-broker
+    restart: always
+    depends_on:
+      - helk-zookeeper
+    environment:
+      KAFKA_BROKER_NAME: helk-kafka-broker
+      KAFKA_BROKER_ID: 1
+      KAFKA_BROKER_PORT: 9092
+      REPLICATION_FACTOR: 1
+      ADVERTISED_LISTENER: ${ADVERTISED_LISTENER}
+      ZOOKEEPER_NAME: helk-zookeeper
+      KAFKA_CREATE_TOPICS: winlogbeat, SYSMON_JOIN, filebeat
+      KAFKA_HEAP_OPTS: -Xmx1G -Xms1G
+      LOG_RETENTION_HOURS: 4
+    ports:
+      - "9092:9092"
+    networks:
+      helk:
+  helk-ksql-server:
+    image: confluentinc/cp-ksql-server:5.1.3
+    container_name: helk-ksql-server
+    restart: always
+    depends_on:
+      - helk-kafka-broker
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: helk-kafka-broker:9092
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_KSQL_SERVICE_ID: wardog
+      KSQL_CUB_KAFKA_TIMEOUT: 300
+      KSQL_KSQL_COMMIT_INTERVAL_MS: 2000
+      KSQL_KSQL_CACHE_MAX_BYTES_BUFFERING: 10000000
+      KSQL_KSQL_STREAMS_AUTO_OFFSET_RESET: earliest
+      KSQL_HEAP_OPTS: -Xmx1g
+    ports:
+      - 8088:8088
+    networks:
+      helk:
+  helk-ksql-cli:
+    image: confluentinc/cp-ksql-cli:5.1.3
+    container_name: helk-ksql-cli
+    depends_on:
+      - helk-ksql-server
+    environment:
+        KSQL_HEAP_OPTS: -Xmx1g
+    entrypoint: /bin/sh
+    tty: true
+    networks:
+      helk:
+
+networks:
+  helk:
+    driver: bridge
